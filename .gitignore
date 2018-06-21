@@ -1,0 +1,3 @@
+#ignore three.js library
+three.js-master/
+*.zip
