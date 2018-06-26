@@ -1,28 +1,34 @@
-var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+var canvas = document.getElementById("gameMainCanvas"); // Get the canvas element
+var engine = new BABYLON.Engine(canvas, true); // Generate the BABYLON 3D engine
 
-renderTargetCanvas = document.getElementById( "gameMainCanvas" );
-
-var renderer = new THREE.WebGLRenderer
-({
-    canvas : renderTargetCanvas
-});
-
-var geometry = new THREE.BoxGeometry( 1, 1, 1 );
-var material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
-var cube = new THREE.Mesh( geometry, material );
-scene.add( cube );
-
-camera.position.z = 5;
-
-var render = function ()
+/******* Add the create scene function ******/
+var createScene = function ()
 {
-	requestAnimationFrame( render );
+    // Create the scene space
+    var scene = new BABYLON.Scene(engine);
 
-	cube.rotation.x += 0.1;
-	cube.rotation.y += 0.1;
+    // Add a camera to the scene and attach it to the canvas
+    var camera = new BABYLON.ArcRotateCamera("Camera", Math.PI / 2, Math.PI / 2, 2, BABYLON.Vector3.Zero(), scene);
+    camera.attachControl(canvas, true);
 
-	renderer.render( scene, camera );
+    // Add lights to the scene
+    var light1 = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(1, 1, 0), scene);
+    var light2 = new BABYLON.PointLight("light2", new BABYLON.Vector3(0, 1, -1), scene);
+
+    // Add and manipulate meshes in the scene
+    var sphere = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter:2}, scene);
+
+    return scene;
 };
 
-render();
+/******* End of the create scene function ******/
+
+var scene = createScene(); //Call the createScene function
+
+engine.runRenderLoop(function () { // Register a render loop to repeatedly render the scene
+        scene.render();
+});
+
+window.addEventListener("resize", function () { // Watch for browser/canvas resize events
+        engine.resize();
+});
