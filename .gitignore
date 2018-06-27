@@ -1,3 +1,5 @@
 #ignore three.js library
 three.js-master/
+
+.vscode/
 *.zip
