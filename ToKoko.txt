@@ -1,0 +1,9 @@
+I've installed following extensions on VSCode:
+
+- GitLens
+- Debugger for Chrome
+- Comment V
+- Live Server
+
+It's highly recommended for you to install those.
+(Please delete this file if you r ready ~
