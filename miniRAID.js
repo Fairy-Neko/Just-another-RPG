@@ -9,8 +9,85 @@ gameApp =
     testSpritePool: new SharedSpriteMgrPool("testPool"),
     timeTotal: 0,
 
-    // Methods
-    /******* Add the create scene function ******/
+//
+// ────────────────────────────────────────────────────── I ──────────
+//   :::::: M E T H O D S : :  :   :    :     :        :          :
+// ────────────────────────────────────────────────────────────────
+//
+
+//
+// ─── GENERATE TEST WORLD ────────────────────────────────────────────────────────
+//
+
+    generateTestWorld: function()
+    {
+        // Generate a temp world lol
+        tmp = new Array(576);
+        var _x, _y;
+        for(_x = 0; _x < 32; _x ++)
+        {
+            for(_y = 0; _y < 18; _y ++)
+            {
+                var id = _x * 18 + _y;
+
+                if(_y < 8)
+                {
+                    if(_x < 5 || _x > 27)
+                    {
+                        tmp[id] = 0;
+                    }
+                    else if(_x == 5)
+                    {
+                        tmp[id] = 4;
+                    }
+                    else if(_x == 27)
+                    {
+                        tmp[id] = 6;
+                    }
+                    else
+                    {
+                        if(getRandomFloat(0, 1) < 0.1)
+                        {
+                            tmp[id] = 7;
+                        }
+                        else
+                        {
+                            tmp[id] = 5;
+                        }
+                    }
+                }
+                else if (_y == 8)
+                {
+                    if(_x < 5 || _x > 27)
+                    {
+                        tmp[id] = 0;
+                    }
+                    else if(_x == 5)
+                    {
+                        tmp[id] = 2;
+                    }
+                    else if(_x == 27)
+                    {
+                        tmp[id] = 3;
+                    }
+                    else
+                    {
+                        tmp[id] = 1;
+                    }
+                }
+                else
+                {
+                    tmp[id] = 0;
+                }
+            }
+        }
+
+        return tmp;
+    },
+
+//
+// ─── CREATESCENE ────────────────────────────────────────────────────────────────
+//
     createScene: function ()
     {
         // Create the scene space
@@ -73,66 +150,7 @@ gameApp =
         // change the first sprite to second cell
         this.sprite1.cellIndex = 1;
 
-        // Generate a temp world lol
-        tmp = new Array(576);
-        var _x, _y;
-        for(_x = 0; _x < 32; _x ++)
-        {
-            for(_y = 0; _y < 18; _y ++)
-            {
-                var id = _x * 18 + _y;
-
-                if(_y < 8)
-                {
-                    if(_x < 5 || _x > 27)
-                    {
-                        tmp[id] = 0;
-                    }
-                    else if(_x == 5)
-                    {
-                        tmp[id] = 4;
-                    }
-                    else if(_x == 27)
-                    {
-                        tmp[id] = 6;
-                    }
-                    else
-                    {
-                        if(getRandomFloat(0, 1) < 0.1)
-                        {
-                            tmp[id] = 7;
-                        }
-                        else
-                        {
-                            tmp[id] = 5;
-                        }
-                    }
-                }
-                else if (_y == 8)
-                {
-                    if(_x < 5 || _x > 27)
-                    {
-                        tmp[id] = 0;
-                    }
-                    else if(_x == 5)
-                    {
-                        tmp[id] = 2;
-                    }
-                    else if(_x == 27)
-                    {
-                        tmp[id] = 3;
-                    }
-                    else
-                    {
-                        tmp[id] = 1;
-                    }
-                }
-                else
-                {
-                    tmp[id] = 0;
-                }
-            }
-        }
+        tmp = this.generateTestWorld();
 
         this.map = new TiledMap({name: "test", isSolid: tmp}, tmp, this.scene);
     },
