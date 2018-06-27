@@ -30,6 +30,8 @@ https://www.liaoxuefeng.com/wiki/0013739516305929606dd18361248578c67b8067c8c017b
     （在本地）提交做出的更改（注意只是在本地x
     可以点VSCode左边（大的）分支图标 -> 最上面一栏鼠标移上去会有个小勾
 
+    （好像在输入框里输入本次的描述直接Ctrl+Enter就行w
+
 （如果确认没问题就这么提交到服务器上）
 7a. git checkout master
     切换到master分支（为了和新分支合并）
