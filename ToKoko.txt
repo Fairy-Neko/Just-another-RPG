@@ -1,9 +1,66 @@
-I've installed following extensions on VSCode:
+安装的插件列表(VSCode):
 
 - GitLens
 - Debugger for Chrome
 - Comment V
 - Live Server
 
-It's highly recommended for you to install those.
-(Please delete this file if you r ready ~
+关于git
+
+https://www.liaoxuefeng.com/wiki/0013739516305929606dd18361248578c67b8067c8c017b000
+可以参考ww
+
+1. clone 这个 repo (如果你看到了这个那么已经完成了x)
+
+2. git fetch & git pull
+    更新
+    可以直接点VSCode左下角的更新按钮w
+
+3. git branch xxx-dev
+    创建一个新的分支（branch），比如haneko-dev
+    可以点左下角的分支图标（旁边应该有个master），然后"+ Create new branch"（上方会弹出窗口）
+
+4. git checkout xxx-dev
+    切换到当前所选的分支
+    如果是用IDE创建的，就会自动切换（左下图标右边的文字会变w
+
+5. 码x
+
+6. git add & git commit
+    （在本地）提交做出的更改（注意只是在本地x
+    可以点VSCode左边（大的）分支图标 -> 最上面一栏鼠标移上去会有个小勾
+
+（如果确认没问题就这么提交到服务器上）
+7a. git checkout master
+    切换到master分支（为了和新分支合并）
+    也可以点左下角，选择master
+
+8a. git fetch & pull
+    更新
+    确保合并之前是最新的状态w
+    不确定可不可以直接点更新按钮。这里应该是单方向的从服务器拉下来（更新按钮不仅会拉下来还会帮你传上去）
+
+9a. git merge xxx-dev
+    将master与xxx-dev分支进行合并
+
+10a. git branch -d xxx-dev
+    删除xxx-dev分支（一定确保已经合并上了w
+    （如果没合并上这个命令是删不掉的可以放心w
+
+    可以通过gitLens插件删除分支。
+
+11a. git push (origin master)
+    向服务器提交自己的更改。
+    好像括号里的东西不打也没关系x
+
+（如果想要现在服务器上保存一下现在的版本 - xxx-dev）
+服务器上也会出来一个叫做 xxx-dev 的分支。
+
+7b. git push (?)
+    直接点更新按钮吧ww
+
+8b. 当某阶段完成后，合并分支，也要删除服务器上的分支：
+    用gitLens点就行了。（gitLens的命令在你点完之后不会执行，需要按下回车确认）
+    Remotes > origin > (branches list)
+
+（这东西好蠢如果你看过了就删了吧xx
