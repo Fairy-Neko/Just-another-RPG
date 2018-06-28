@@ -1,3 +1,4 @@
+'use strict';
 //miniRAID main script
 var canvas = document.getElementById("gameMainCanvas"); // Get the canvas element
 var engine = new BABYLON.Engine(canvas, false); // Generate the BABYLON 3D engine
@@ -6,7 +7,14 @@ var gameApp = gameApp || {};
 
 gameApp =
 {
-    testSpritePool: new SharedSpriteMgrPool("testPool"),
+    testSpritePool: new SharedSpriteMgrPool({name: "testPool"}),
+    
+    testMobSpritePool: new SharedSpriteMgrPool({
+        name: "testMobSpritePool",
+        pathPrefix: "Assets/Images/Mobs/",
+    }),
+    testMob: undefined,
+
     timeTotal: 0,
 
 //
@@ -22,7 +30,7 @@ gameApp =
     generateTestWorld: function()
     {
         // Generate a temp world lol
-        tmp = new Array(576);
+        var tmp = new Array(576);
         var _x, _y;
         for(_x = 0; _x < 32; _x ++)
         {
@@ -123,8 +131,8 @@ gameApp =
         // Add lights to the scene
         var light2 = new BABYLON.PointLight("light2", new BABYLON.Vector3(0, 0, 0), scene);        
         // Add and manipulate meshes in the scene
-        sphere = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter:2}, scene);
-        sphere2 = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter:2}, scene);
+        var sphere = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter:2}, scene);
+        var sphere2 = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter:2}, scene);
 
         sphere.position = new BABYLON.Vector3(16, 9, 0);
         sphere2.position = new BABYLON.Vector3(-16, -9, 0);
@@ -150,9 +158,15 @@ gameApp =
         // change the first sprite to second cell
         this.sprite1.cellIndex = 1;
 
-        tmp = this.generateTestWorld();
+        var tmp = this.generateTestWorld();
 
         this.map = new TiledMap({name: "test", isSolid: tmp}, tmp, this.scene);
+
+        this.testMob = new TestMob({
+            spriteMgrPool: this.testMobSpritePool,
+            scene: this.scene,
+            position: new BABYLON.Vector3(4, 0, 0)
+        })
     },
 
     //
@@ -166,14 +180,17 @@ gameApp =
 
         this.sprite1.position = (new BABYLON.Vector3(Math.sin(this.timeTotal), Math.cos(this.timeTotal), -1)).scale(6);
         this.sprite2.position = (new BABYLON.Vector3(Math.cos(this.timeTotal), Math.sin(this.timeTotal), -1)).scale(4);
+        
+        this.testMob.update(deltaTime);
     },
 
     //
     // ─── RENDER THE SCENE ───────────────────────────────────────────────────────────
     //
 
-    render: function()
+    render: function(deltaTime)
     {
+        this.testMob.render(deltaTime);
         this.scene.render();
     },
 };
@@ -186,7 +203,7 @@ engine.runRenderLoop(function () { // Register a render loop to repeatedly rende
     gameApp.mainLoop(engine.getDeltaTime() * 0.001);
 
     // Render the scene after update
-    gameApp.render();
+    gameApp.render(engine.getDeltaTime() * 0.001);
 
 });
 
