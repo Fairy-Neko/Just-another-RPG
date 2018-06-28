@@ -137,6 +137,8 @@ gameApp =
         sphere.position = new BABYLON.Vector3(16, 9, 0);
         sphere2.position = new BABYLON.Vector3(-16, -9, 0);
 
+        // scene.debugLayer.show();
+
         return scene;
     },
     /******* End of the create scene function ******/
