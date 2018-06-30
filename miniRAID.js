@@ -14,6 +14,7 @@ gameApp =
         pathPrefix: "Assets/Images/Mobs/",
     }),
     testMob: undefined,
+    UITex: undefined,
 
     timeTotal: 0,
 
@@ -23,9 +24,9 @@ gameApp =
 // ────────────────────────────────────────────────────────────────
 //
 
-//
-// ─── GENERATE TEST WORLD ────────────────────────────────────────────────────────
-//
+    //
+    // ─── GENERATE TEST WORLD ────────────────────────────────────────────────────────
+    //
 
     generateTestWorld: function()
     {
@@ -93,16 +94,16 @@ gameApp =
         return tmp;
     },
 
-//
-// ─── CREATESCENE ────────────────────────────────────────────────────────────────
-//
+    //
+    // ─── CREATESCENE ────────────────────────────────────────────────────────────────
+    //
     createScene: function ()
     {
         // Create the scene space
         var scene = new BABYLON.Scene(engine);
-//
-// ─── ORTHO 2D CAMERA ────────────────────────────────────────────────────────────
-//
+        //
+        // ─── ORTHO 2D CAMERA ────────────────────────────────────────────────────────────
+        //
         // Add a camera to the scene and attach it to the canvas
         // It is an orthographic camera, as a 2d game.
         var camera = new BABYLON.FreeCamera("FreeCamera", new BABYLON.Vector3(0, 0, -10), scene);
@@ -116,9 +117,9 @@ gameApp =
         camera.orthoBottom = -9;
         camera.orthoLeft = -16;
         camera.orthoRight = 16;
-//
-// ─── FREE CAMERA ────────────────────────────────────────────────────────────────
-//
+        //
+        // ─── FREE CAMERA ────────────────────────────────────────────────────────────────
+        //
         // // Parameters : name, position, scene
         // var camera = new BABYLON.UniversalCamera("UniversalCamera", new BABYLON.Vector3(0, 0, -10), scene);
 
@@ -127,15 +128,7 @@ gameApp =
         
         // // Attach the camera to the canvas
         // camera.attachControl(canvas, true);
-// ────────────────────────────────────────────────────────────────────────────────
-        // Add lights to the scene
-        var light2 = new BABYLON.PointLight("light2", new BABYLON.Vector3(0, 0, 0), scene);        
-        // Add and manipulate meshes in the scene
-        var sphere = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter:2}, scene);
-        var sphere2 = BABYLON.MeshBuilder.CreateSphere("sphere", {diameter:2}, scene);
-
-        sphere.position = new BABYLON.Vector3(16, 9, 0);
-        sphere2.position = new BABYLON.Vector3(-16, -9, 0);
+        // ────────────────────────────────────────────────────────────────────────────────
 
         // scene.debugLayer.show();
 
@@ -151,6 +144,12 @@ gameApp =
     {
         this.scene = this.createScene();
 
+        // GUI
+        this.UITex = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+        
+        // Told popup text manager that the UI handle is here
+        UIPopupTextMgr.RegisterGameApp(this);
+
         this.sprite1 = new BABYLON.Sprite("test1", this.testSpritePool.getMgr("test", this.scene, 16));
         this.sprite2 = new BABYLON.Sprite("test2", this.testSpritePool.getMgr("test", this.scene, 16));
 
@@ -162,7 +161,7 @@ gameApp =
 
         var tmp = this.generateTestWorld();
 
-        this.map = new TiledMap({name: "test", isSolid: tmp}, tmp, this.scene);
+        this.map = new TiledMap({name: "tmap_test", isSolid: tmp}, tmp, this.scene);
 
         this.testMob = new TestMob({
             spriteMgrPool: this.testMobSpritePool,
@@ -182,8 +181,32 @@ gameApp =
 
         this.sprite1.position = (new BABYLON.Vector3(Math.sin(this.timeTotal), Math.cos(this.timeTotal), -1)).scale(6);
         this.sprite2.position = (new BABYLON.Vector3(Math.cos(this.timeTotal), Math.sin(this.timeTotal), -1)).scale(4);
+
+        //Pressure test
+        // var i = 0;
+
+        // // 10 / frame : 50fps
+        // // 2 / frame : 60fps
+        // for(i = 0; i < 1; i++)
+        // {
+        //     UIPopupTextMgr.Singleton().AddText({
+        //         text: "9999",
+        //         posX: this.sprite1.position.x + getRandomFloat(-.4, .4),
+        //         posY: this.sprite1.position.y + getRandomFloat(-.4, .4),
+        //         outlineWidth: 2
+        //     });
+
+        //     UIPopupTextMgr.Singleton().AddText({
+        //         text: "9999",
+        //         posX: this.sprite2.position.x + getRandomFloat(-.4, .4),
+        //         posY: this.sprite2.position.y + getRandomFloat(-.4, .4),
+        //         outlineWidth: 2
+        //     });
+        // }
         
         this.testMob.update(deltaTime);
+
+        UIPopupTextMgr.Singleton().update(deltaTime);
     },
 
     //
@@ -206,6 +229,9 @@ engine.runRenderLoop(function () { // Register a render loop to repeatedly rende
 
     // Render the scene after update
     gameApp.render(engine.getDeltaTime() * 0.001);
+
+    var fpsLabel = document.getElementById("fpsLabel");
+    fpsLabel.innerHTML = engine.getFps().toFixed() + " fps";
 
 });
 
