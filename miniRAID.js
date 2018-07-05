@@ -97,6 +97,7 @@ gameApp =
     //
     // ─── CREATESCENE ────────────────────────────────────────────────────────────────
     //
+    // This method will simply create a scene and a camera.
     createScene: function ()
     {
         // Create the scene space
@@ -113,10 +114,14 @@ gameApp =
         // Keep the ascept ratio
         // 1024 x 576 -> 32 by 18, 32 ppu (pixel per unit)
         // (0, 0) in the center.
+
+        // N.B. Due to bug of babylon.js, neither of following properties can be set to 0(zero). 
+        // (that means you cannot let origin point (0,0) on the corner.)
         camera.orthoTop = 9;
         camera.orthoBottom = -9;
         camera.orthoLeft = -16;
         camera.orthoRight = 16;
+
         //
         // ─── FREE CAMERA ────────────────────────────────────────────────────────────────
         //
@@ -131,6 +136,11 @@ gameApp =
         // ────────────────────────────────────────────────────────────────────────────────
 
         // scene.debugLayer.show();
+
+        // >>> Need to test if this works on mobile / old devices properly. <<<
+        // Enable babylon.js' web worker based collision system
+        scene.workerCollisions = true;
+        // >>> Need to test if this works on mobile / old devices properly. <<<
 
         return scene;
     },
@@ -181,6 +191,8 @@ gameApp =
 
         this.sprite1.position = (new BABYLON.Vector3(Math.sin(this.timeTotal), Math.cos(this.timeTotal), -1)).scale(6);
         this.sprite2.position = (new BABYLON.Vector3(Math.cos(this.timeTotal), Math.sin(this.timeTotal), -1)).scale(4);
+
+        this.sprite1.rotation = (new BABYLON.Vector3(this.timeTotal, this.timeTotal, this.timeTotal)).scale(10);
 
         //Pressure test
         // var i = 0;

@@ -29,6 +29,26 @@
 			<script src="lib/mobs.js"></script>
 			<script src="miniRAID.js"></script>
 
+			<script>
+				console.log("GOOD BYE Babylonjs! ......");
+
+				List = [];
+
+				function test(obj)
+				{
+					List.push(obj);
+				}
+
+				obj = {a: 1, b: 5};
+				console.log(obj);
+
+				test(obj);
+				console.log(List);
+
+				obj.b = 3;
+				console.log(List[0]);
+			</script>
+
 			<p>A poor demo. Consider using a single quad instead of sprites.</p>
 			<p>Current: <strong>Sprite & Tilemap world rendering</strong></p>
 
