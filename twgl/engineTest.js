@@ -7,6 +7,11 @@ class MiniRAID extends GameApp
         super(canvasId);
     }
 
+    init()
+    {
+        console.log("Game Inited.");
+    }
+
     update(time, deltaTime)
     {
         // Update fps meter

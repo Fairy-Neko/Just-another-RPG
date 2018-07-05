@@ -13,8 +13,12 @@ class GameApp
         this._prevTime = 0;
         this._deltaTime = 0;
 
+        this.init();
+
         requestAnimationFrame(this._mainLoop.bind(this));
     }
+
+    init() {}
 
     update(time, deltaTime) {}
 
