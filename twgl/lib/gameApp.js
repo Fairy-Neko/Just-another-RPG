@@ -9,6 +9,12 @@ class GameApp
     constructor(canvasId)
     {
         this.gl = document.getElementById(canvasId).getContext("webgl");
+        twgl.addExtensionsToContext(this.gl);
+        if (!this.gl.drawArraysInstanced || !this.gl.createVertexArray) 
+        {
+            alert("need drawArraysInstanced and createVertexArray"); // eslint-disable-line
+            return;
+        }
         
         this._prevTime = 0;
         this._deltaTime = 0;
@@ -24,8 +30,9 @@ class GameApp
 
     render(time, deltaTime) {}
 
-    _mainLoop(_time)
+    _mainLoop(__time)
     {
+        var _time = __time * 0.001;
         this._deltaTime = _time - this._prevTime;
         this._prevTime = _time;
 
