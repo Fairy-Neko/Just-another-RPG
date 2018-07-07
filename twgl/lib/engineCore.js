@@ -159,6 +159,57 @@ class RenderObject
 }
 
 //
+// ─── SPRITE RENDER OBJECT ───────────────────────────────────────────────────────
+//
+// A object of "Sprite RenderObject" stands for a set of sprites that shares same material (image file),
+// And they could have different position, rotation, tint color, sprite sheet etc.
+// This class should be used inside sprite class.
+class SpriteRenderObject extends RenderObject
+{
+    constructor(gl, {
+        spriteFile = "Assets/Images/test.png",
+        sizeX = 1,
+        sizeY = 1,
+    } = {})
+    {
+        super({
+            material: new Material({
+                programInfo: twgl.createProgramInfo(gl, [generalSpriteVS, generalSpriteFS]),
+                uniforms:{
+                    // OMG how to deal with instances...
+                    // emmmmmm...
+
+                    // World matrix of each instance
+                    i_world: [],
+
+                    // Tint color (including alpha) of the sprite
+                    i_tintColor: [],
+
+                    // The sprite sheet texture trick thing
+                    // (x, y) -> texOffset; (z, w) -> texScale (inv of tiling);
+                    i_texOffsetScale: [],
+
+                    // Texture of those sprites (they share the same texture)
+                    u_mainTex: SpriteTexPool.Singleton().getTexture(spriteFile),
+                },
+            }),
+            bufferInfo: twgl.createPlaneBufferInfo(gl, sizeX, sizeY, 1, 1, 
+                twgl.m4.axisRotation([1, 0, 0], 1.5707963)), 
+                // ^ Rotate the XZ plane to a XY plane.
+                // (twgl's XYQuad is always square so we do not want it)
+                // Not sure if this could introduce some precision problem ...
+            drawType: gl.TRIANGLES,
+            gl: gl,
+        });
+    }
+
+    render(gl)
+    {
+
+    }
+}
+
+//
 // ─── TRANSFORM ──────────────────────────────────────────────────────────────────
 //
 
@@ -225,14 +276,13 @@ class Transform
 
 class GameObject
 {
-    constructor({
-        material = undefined,
-        bufferInfo = undefined,
+    constructor(gl, {
+        renderObject = undefined,
         transform = new Transform(),
     } = {})
     {
-        this.material = material;
-        this.bufferInfo = bufferInfo;
+        this.gl = gl;
+        this.renderObject = renderObject;
         this.transform = transform;
     }
 
@@ -243,22 +293,124 @@ class GameObject
 }
 
 //
-// ─── SPRITE RENDER OBJECT ───────────────────────────────────────────────────────
+// ─── SPRITE TEXTURE POOL ───────────────────────────────────────────────────────
 //
-// A object of "Sprite RenderObject" stands for a set of sprites that shares same material (image file),
-// And they could have different position, rotation, tint color, sprite sheet etc.
-// This class should be used inside sprite class.
-class SpriteRenderObject extends RenderObject
-{
-    constructor({
-    } = {})
-    {
 
+class SpriteTexPool
+{
+    static Singleton()
+    {
+        if(typeof SpriteTexPool.singleton == 'undefined')
+        {
+            SpriteTexPool.singleton = new SpriteTexPool();
+        }
+
+        return SpriteTexPool.singleton;
     }
 
-    render(gl)
+    constructor()
     {
+        this.spriteTexPool = {};
+    }
 
+    RegisterGameApp(game)
+    {
+        this.game = game;
+        this.gl = this.game.gl;
+    }
+
+    getTexture(name)
+    {
+        if(typeof this.game !== "undefined")
+        {
+            if(!this.spriteTexPool.hasOwnProperty(name))
+            {
+                this.spriteTexPool[name] = twgl.createTexture(this.gl, {
+                    src: name,
+                    minMag: this.gl.NEAREST, // Assuming we r having pixel perfect ~w~
+                })
+            }
+
+            return this.spriteTexPool[name];
+        }
+    }
+
+    releaseTexture(name)
+    {
+        if(typeof this.game !== "undefined")
+        {
+            if(this.spriteTexPool.hasOwnProperty(name))
+            {
+                this.gl.deleteTexture(this.spriteTexPool[name]);
+                delete this.spriteTexPool[name];
+            }
+        }
+    }
+
+    clearDict()
+    {
+        for(var key in this.spriteTexPool)
+        {
+            this.releaseTexture(key);
+        }
+    }
+}
+
+//
+// ─── SPRITES ────────────────────────────────────────────────────────────────────
+//
+
+class Sprite extends GameObject
+{
+    constructor(gl, {
+        spriteFile = "Assets/Images/test.png",
+        initCell = 0,
+        position = twgl.v3.create(0, 0, 0),
+        rotation = twgl.m4.identity(),
+        scale = twgl.v3.create(1, 1, 1),
+        tintColor = [1, 1, 1, 1],
+        sizeX = 1,
+        sizeY = 1,
+        parent = undefined,
+    } = {})
+    {
+        /*
+            material: new Material({
+                programInfo: twgl.createProgramInfo(gl, [generalSpriteVS, generalSpriteFS]),
+                uniforms: {
+                    // The world matrix of this object
+                    i_world: twgl.m4.identity(),
+
+                    // Tint color (including alpha) of the sprite
+                    i_tintColor: tintColor,
+
+                    // The sprite sheet texture trick thing
+                    i_texOffsetScale: [
+                        // (x, y) -> texOffset; (z, w) -> texScale (inv of tiling);
+                        initCell % ImageSizes[spriteFile].cellCountX,
+                        Math.floor(initCell / ImageSizes[spriteFile].cellCountX),
+                        ImageSizes[spriteFile].cellCountX,
+                        ImageSizes[spriteFile].cellCountY
+                    ],
+                    u_mainTex: SpriteTexPool.Singleton().getTexture(spriteFile),
+                }
+            }),
+            bufferInfo: twgl.createPlaneBufferInfo(gl, sizeX, sizeY, 1, 1, 
+                twgl.m4.axisRotation([1, 0, 0], 1.5707963)), 
+                // ^ Rotate the XZ plane to a XY plane.
+                // (twgl's XYQuad is always square so we do not want it)
+                // Not sure if this could introduce some precision problem ...
+        */
+
+        super(gl, {
+            renderObject: undefined,
+            transform: new Transform({
+                position: position,
+                rotation: rotation,
+                scale: scale,
+                parent: parent,
+            }),
+        });
     }
 }
 
