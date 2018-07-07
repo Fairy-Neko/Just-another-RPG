@@ -185,6 +185,9 @@ class SpriteRenderObject extends RenderObject
                         Multiple actions in one frame will be combined to a single iteration.
                         Add / Remove elements costs O(1), and a single O(n) to iterate them all.
 
+                        The instance buffer (array) will have a fixed size at beginning, and it will
+                        become 1.5x (realloc) if needed. (just like std::vector, 1.5x instead of 2x)
+
                         Each element hold an index after iteration (creation / modification of the instance buffer),
                         To directly update their instance data.
                         After iteration, the SpriteRenderObject will modify the index hold by each instances.
