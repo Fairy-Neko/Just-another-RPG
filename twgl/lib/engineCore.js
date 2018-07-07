@@ -178,6 +178,18 @@ class SpriteRenderObject extends RenderObject
                 uniforms:{
                     // OMG how to deal with instances...
                     // emmmmmm...
+                    /*
+                        Use a linked list to hold all instances (Sprites).
+                        Iterate over the linked list to get an instance buffer. (O(n))
+                        Only update (iterate the whole list) when adding or removing sprites.
+                        Multiple actions in one frame will be combined to a single iteration.
+                        Add / Remove elements costs O(1), and a single O(n) to iterate them all.
+
+                        Each element hold an index after iteration (creation / modification of the instance buffer),
+                        To directly update their instance data.
+                        After iteration, the SpriteRenderObject will modify the index hold by each instances.
+                        Instances could update data directly to the buffer without any extra cost.
+                    */
 
                     // World matrix of each instance
                     i_world: [],
