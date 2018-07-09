@@ -93,6 +93,9 @@ class MiniRAID extends GameApp
         
         this.sprite1 = new Sprite(this.gl, {
             spriteFile: "/Assets/Images/test.png",
+            position: [10, 0, 0],
+            tintColor: [0, 0.7, 1, 1],
+            initCell: 0,
             preferredSize: 16
         });
 
@@ -106,6 +109,11 @@ class MiniRAID extends GameApp
         // Update fps meter
         var fpsLabel = document.getElementById("fpsLabel");
         fpsLabel.innerHTML = Math.round(1.0 / deltaTime) + " fps";
+
+        this.sprite1.update();
+
+        this.sprite1.transform.position[0] -= deltaTime;
+        this.sprite1.tintColor[0] += deltaTime * 0.2;
     }
 
     render(time, deltaTime)

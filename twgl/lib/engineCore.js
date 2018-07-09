@@ -19,13 +19,14 @@ varying vec4 v_tintColor;
 void main()
 {
     // Convert texture coord w.r.t. i_texOffsetScale
-    v_texCoord = vec2(texcoord.x / i_texOffsetScale.z + i_texOffsetScale.x,
-        texcoord.y / i_texOffsetScale.w + i_texOffsetScale.y);
+    v_texCoord = vec2(texcoord.x / i_texOffsetScale.z + i_texOffsetScale.x * (1.0 / i_texOffsetScale.z),
+        texcoord.y / i_texOffsetScale.w + i_texOffsetScale.y * (1.0 / i_texOffsetScale.w));
 
-    // vec4 wPosition = i_world * position;
-    vec4 wPosition = position;
-    v_position = u_viewProj * position;
+    vec4 wPosition = i_world * position;
+    // vec4 wPosition = position;
+    v_position = u_viewProj * wPosition;
     v_tintColor = i_tintColor;
+    gl_Position = v_position;
 }
 `;
 
@@ -43,6 +44,7 @@ void main()
     // Sample the texture and tint then finish.
     // The * operator works component-wise for vectors like vec4.
     gl_FragColor = texture2D(u_mainTex, v_texCoord) * v_tintColor;
+    // gl_FragColor = vec4(1, 1, 1, 1);
 }
 `;
 
@@ -226,8 +228,8 @@ class SpriteRenderObject extends RenderObject
 
         var arrays = {
             position: [-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0],
-            texcoord: [0, 1, 1, 1, 1, 0, 0, 0],
-            indices:  [0, 1, 2, 0, 2, 3],
+            texcoord: [0, 0, 1, 0, 1, 1, 0, 1],
+            indices:  [0, 3, 2, 0, 2, 1],
         };
         Object.assign(arrays, {
             i_world: {
@@ -242,11 +244,10 @@ class SpriteRenderObject extends RenderObject
             },
             i_texOffsetScale: {
                 numComponents: 4,
-                data: this.instanceBuffer.i_tintColor,
+                data: this.instanceBuffer.i_texOffsetScale,
                 divisor: 1,
             },
         });
-        console.log(arrays);
         this.bufferInfo = twgl.createBufferInfoFromArrays(gl, arrays);
 
         this.vertexArrayInfo = twgl.createVertexArrayInfo(gl, this.material.getProgramInfo(), this.bufferInfo);
@@ -686,16 +687,16 @@ class Sprite extends GameObject
     // instance buffer pointer.
     render()
     {
-        this.instanceBuffer.i_world = this.transform.getWorldMatrix();
-        this.instanceBuffer.i_tintColor = this.tintColor;
-        this.instanceBuffer.i_texOffsetScale = 
+        twgl.m4.copy(this.transform.getWorldMatrix(), this.instanceBuffer.i_world);
+        this.instanceBuffer.i_tintColor.set(this.tintColor);
+        this.instanceBuffer.i_texOffsetScale.set(
         [
             // (x, y) -> texOffset; (z, w) -> texScale (inv of tiling);
             this.currentCell % this._cX,
             Math.floor(this.currentCell / this._cX),
             this._cX,
             this._cY
-        ];
+        ]);
     }
 }
 
@@ -761,8 +762,10 @@ class Renderer
         {
             // Translate the matrix with [0, 0, 10] will place the ortho camera at (0, 0, -10).
             // Default screen coord: 18 x 32 @ 32ppm / 1024 x 576, (-9, 9), (-16, 16).
-            // u_viewProj: twgl.m4.translate(twgl.m4.ortho(-9, 9, 16, -16, 1, 100), [0, 0, 10]),
-            u_viewProj: twgl.m4.identity(),
+            // u_viewProj: twgl.m4.translate(twgl.m4.ortho(-9, 9, 16, -16, 1, 100), [0, 0, 0]),
+            // u_viewProj: twgl.m4.ortho(-16, 16, 9, -9, 1, -1),
+            u_viewProj: twgl.m4.ortho(-16, 16, 9, -9, 1, -1),
+            // u_viewProj: twgl.m4.identity(),
         };
     }
 
