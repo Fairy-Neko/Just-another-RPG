@@ -22,7 +22,9 @@ void main()
     v_texCoord = vec2(texcoord.x / i_texOffsetScale.z + i_texOffsetScale.x,
         texcoord.y / i_texOffsetScale.w + i_texOffsetScale.y);
 
-    v_position = i_world * position;
+    // vec4 wPosition = i_world * position;
+    vec4 wPosition = position;
+    v_position = u_viewProj * position;
     v_tintColor = i_tintColor;
 }
 `;
@@ -131,7 +133,10 @@ class RenderObject
         {
             this.drawType = (this.drawType === undefined) ? gl.TRIANGLES : this.drawType;
 
-            this.vertexArrayInfo = twgl.createVertexArrayInfo(gl, this.material.getProgramInfo(), this.bufferInfo);
+            if(typeof this.bufferInfo !== "undefined")
+            {
+                this.vertexArrayInfo = twgl.createVertexArrayInfo(gl, this.material.getProgramInfo(), this.bufferInfo);
+            }
         }
     }
 
@@ -170,57 +175,277 @@ class SpriteRenderObject extends RenderObject
         spriteFile = "Assets/Images/test.png",
         sizeX = 1,
         sizeY = 1,
+        startSize = 64,
     } = {})
     {
         super({
             material: new Material({
                 programInfo: twgl.createProgramInfo(gl, [generalSpriteVS, generalSpriteFS]),
                 uniforms:{
-                    // OMG how to deal with instances...
-                    // emmmmmm...
-                    /*
-                        Use a linked list to hold all instances (Sprites).
-                        Iterate over the linked list to get an instance buffer. (O(n))
-                        Only update (iterate the whole list) when adding or removing sprites.
-                        Multiple actions in one frame will be combined to a single iteration.
-                        Add / Remove elements costs O(1), and a single O(n) to iterate them all.
-
-                        The instance buffer (array) will have a fixed size at beginning, and it will
-                        become 1.5x (realloc) if needed. (just like std::vector, 1.5x instead of 2x)
-
-                        Each element hold an index after iteration (creation / modification of the instance buffer),
-                        To directly update their instance data.
-                        After iteration, the SpriteRenderObject will modify the index hold by each instances.
-                        Instances could update data directly to the buffer without any extra cost.
-                    */
-
-                    // World matrix of each instance
-                    i_world: [],
-
-                    // Tint color (including alpha) of the sprite
-                    i_tintColor: [],
-
-                    // The sprite sheet texture trick thing
-                    // (x, y) -> texOffset; (z, w) -> texScale (inv of tiling);
-                    i_texOffsetScale: [],
-
                     // Texture of those sprites (they share the same texture)
                     u_mainTex: SpriteTexPool.Singleton().getTexture(spriteFile),
                 },
             }),
-            bufferInfo: twgl.createPlaneBufferInfo(gl, sizeX, sizeY, 1, 1, 
-                twgl.m4.axisRotation([1, 0, 0], 1.5707963)), 
+            bufferInfo: undefined, 
                 // ^ Rotate the XZ plane to a XY plane.
                 // (twgl's XYQuad is always square so we do not want it)
                 // Not sure if this could introduce some precision problem ...
             drawType: gl.TRIANGLES,
             gl: gl,
         });
+
+        this.instanceBuffer = {
+            // OMG how to deal with instances...
+            // emmmmmm...
+            /*
+                Use a linked list to hold all instances (Sprites).
+                Iterate over the linked list to get an instance buffer. (O(n))
+                Only update (iterate the whole list) when adding or removing sprites.
+                Multiple actions in one frame will be combined to a single iteration.
+                Add / Remove elements costs O(1), and a single O(n) to iterate them all.
+
+                The instance buffer (array) will have a fixed size at beginning, and it will
+                become 1.5x (realloc) if needed. (just like std::vector, 1.5x instead of 2x)
+
+                Each element hold an index after iteration (creation / modification of the instance buffer),
+                To directly update their instance data.
+                After iteration, the SpriteRenderObject will modify the index hold by each instances.
+                Instances could update data directly to the buffer without any extra cost.
+            */
+
+            // World matrix of each instance
+            i_world: new Float32Array(startSize * 16),
+
+            // Tint color (including alpha) of the sprite
+            i_tintColor: new Float32Array(startSize * 4),
+
+            // The sprite sheet texture trick thing
+            // (x, y) -> texOffset; (z, w) -> texScale (inv of tiling);
+            i_texOffsetScale: new Float32Array(startSize * 4),
+        };
+
+        var arrays = {
+            position: [-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0],
+            texcoord: [0, 1, 1, 1, 1, 0, 0, 0],
+            indices:  [0, 1, 2, 0, 2, 3],
+        };
+        Object.assign(arrays, {
+            i_world: {
+                numComponents: 16,
+                data: this.instanceBuffer.i_world,
+                divisor: 1,
+            },
+            i_tintColor: {
+                numComponents: 4,
+                data: this.instanceBuffer.i_tintColor,
+                divisor: 1,
+            },
+            i_texOffsetScale: {
+                numComponents: 4,
+                data: this.instanceBuffer.i_tintColor,
+                divisor: 1,
+            },
+        });
+        console.log(arrays);
+        this.bufferInfo = twgl.createBufferInfoFromArrays(gl, arrays);
+
+        this.vertexArrayInfo = twgl.createVertexArrayInfo(gl, this.material.getProgramInfo(), this.bufferInfo);
+
+        // The linked list
+        this.headObject = undefined;
+        this.tailObject = undefined;
+
+        // Should the instance buffer update using the linked list?
+        // This only happens when adding or removing sprites.
+        // When this render object was created, it should has an initial update.
+        this.isDirty = true;
+        this.spriteCount = 0;
+        this.currentBufferSize = startSize;
+    }
+
+    // Add a sprite at the end of the list
+    addSprite(sprite)
+    {
+        sprite.parentList = this;
+
+        sprite.prevObject = this.tailObject;
+        sprite.nextObject = undefined;
+
+        // The list is empty
+        if(typeof this.headObject === "undefined" &&
+           typeof this.tailObject === "undefined")
+        {
+            this.headObject = sprite;
+        }
+        else
+        {
+            // The object should be add to the end of the list
+            // to keep the order of instance buffer.
+            this.tailObject.nextObject = sprite;
+        }
+
+        this.tailObject = sprite;
+
+        // The instance buffer should be updated.
+        this.isDirty = true;
+        this.spriteCount += 1;
+    }
+
+    // Remove a sprite from the list
+    removeSprite(sprite)
+    {
+        // TODO: check if the GC works properly so no memory leaks !
+        // Because we have not really deleted the object.
+        // It should be collected by JavaScript GC cuz no ref to the object.
+
+        // You are deleting objects not belong to this list!
+        if(sprite.parentList !== this)
+        {
+            return;
+        }
+
+        if(typeof sprite.nextObject !== "undefined")
+        {
+            sprite.nextObject.prevObject = sprite.prevObject;
+        }
+        else
+        // You are deleting the tail node of this list (cuz it does not have next and it is in this list)
+        {
+            this.tailObject = this.tailObject.prevObject;
+        }
+
+        if(typeof sprite.prevObject !== "undefined")
+        {
+            sprite.prevObject.nextObject = sprite.nextObject;
+        }
+        else
+        // You are deleting the head node of this list (cuz it does not have prev and it is in this list)
+        {
+            this.headObject = this.headObject.nextObject;
+        }
+
+        // The instance buffer should be updated.
+        this.isDirty = true;
+        this.spriteCount -= 1;
+    }
+
+    flushInstanceBuffer()
+    {
+        var reallocFlag = false;
+        while(this.spriteCount > this.currentBufferSize)
+        {
+            // Actually this part will not work if we cannot realloc VBOs.
+            // So simply return a false when the buffer is full.
+            // TODO: realloc VBOs on GPU.
+            return false;
+
+            reallocFlag = true;
+            this.currentBufferSize = Math.floor(this.currentBufferSize * 1.5);
+        }
+
+        if(reallocFlag === true)
+        {
+            // Re-alloc the buffers.
+            
+            // TODO: check if the GC works properly so no memory leaks !
+            // Because we have not really deleted the object.
+            // It should be collected by JavaScript GC cuz no ref to the object.
+            
+            // World matrix of each instance
+            this.instanceBuffer.i_world = new Float32Array(startSize * 16);
+
+            // Tint color (including alpha) of the sprite
+            this.instanceBuffer.i_tintColor = new Float32Array(startSize * 4);
+
+            // The sprite sheet texture trick thing
+            // (x, y) -> texOffset; (z, w) -> texScale (inv of tiling);
+            this.instanceBuffer.i_texOffsetScale = new Float32Array(startSize * 4);
+        }
+
+        // Re-assign index (arrays)
+        // s: current sprite reference
+        // idx: current index (for assigning the buffer)
+        for(var s = this.headObject, idx = 0; s != undefined; s = s.nextObject, ++idx)
+        {
+            s.instanceBuffer.i_world = new Float32Array(this.instanceBuffer.i_world.buffer, idx * 16 * 4, 16);
+            s.instanceBuffer.i_tintColor = new Float32Array(this.instanceBuffer.i_tintColor.buffer, idx * 4 * 4, 4);
+            s.instanceBuffer.i_texOffsetScale = new Float32Array(this.instanceBuffer.i_texOffsetScale.buffer, idx * 4 * 4, 4);
+
+            s.render();
+        }
     }
 
     render(gl)
     {
+        if(this.isDirty === true)
+        {
+            // Re-assign the instance buffer index to the sprites
+            // The value will be filled later by calling render() of each sprite.
+            // The buffer will automatically increase the size if needed.
+            // This function will also call render() on each sprite.
+            this.flushInstanceBuffer();
 
+            this.isDirty = false;
+        }
+        else
+        {
+            for(var s = this.headObject; s != undefined; s = s.nextObject)
+            {
+                s.render();
+            }
+        }
+
+        // Render the instances
+        if(this.spriteCount > 0)
+        {
+            // Update the VBO for the instance buffer
+            twgl.setAttribInfoBufferFromArray(gl, this.bufferInfo.attribs.i_world, this.instanceBuffer.i_world);
+            twgl.setAttribInfoBufferFromArray(gl, this.bufferInfo.attribs.i_tintColor, this.instanceBuffer.i_tintColor);
+            twgl.setAttribInfoBufferFromArray(gl, this.bufferInfo.attribs.i_texOffsetScale, this.instanceBuffer.i_texOffsetScale);
+
+            this.prepareRender(gl);
+
+            this.material.setUpMaterial(gl);
+            twgl.setBuffersAndAttributes(gl, this.material.getProgramInfo(), this.vertexArrayInfo);
+            twgl.drawBufferInfo(gl, this.vertexArrayInfo, this.drawType, this.vertexArrayInfo.numelements, 0, this.spriteCount);
+        }
+    }
+
+    static RegisterGameApp(game)
+    {
+        SpriteRenderObject.game = game;
+    }
+
+    // This will only give you the render object.
+    // SpriteRenderObject.addSprite() will not be called.
+    static getSpriteRenderObject(name, preferredSize = 64)
+    {
+        // Create the dict if it doesn't exist
+        if(typeof SpriteRenderObject.dict === "undefined")
+        {
+            SpriteRenderObject.dict = {};
+        }
+
+        if(!SpriteRenderObject.dict.hasOwnProperty(name))
+        {
+            SpriteRenderObject.dict[name] = new SpriteRenderObject(SpriteRenderObject.game.gl,{
+                spriteFile: name,
+                sizeX: 1,
+                sizeY: 1,
+                startSize: preferredSize,
+            });
+        }
+
+        return SpriteRenderObject.dict[name];
+    }
+
+    static clearRenderObjectDict()
+    {
+        // don't know if this will cause some GC problems...
+        for(var key in SpriteRenderObject.dict)
+        {
+            delete SpriteRenderObject.dict[key];
+        }
     }
 }
 
@@ -367,6 +592,7 @@ class SpriteTexPool
         for(var key in this.spriteTexPool)
         {
             this.releaseTexture(key);
+            delete this.spriteTexPool[key];
         }
     }
 }
@@ -386,6 +612,7 @@ class Sprite extends GameObject
         tintColor = [1, 1, 1, 1],
         sizeX = 1,
         sizeY = 1,
+        preferredSize = 64,
         parent = undefined,
     } = {})
     {
@@ -417,8 +644,11 @@ class Sprite extends GameObject
                 // Not sure if this could introduce some precision problem ...
         */
 
+        scale[0] *= sizeX;
+        scale[1] *= sizeY;
+
         super(gl, {
-            renderObject: undefined,
+            renderObject: SpriteRenderObject.getSpriteRenderObject(spriteFile, preferredSize),
             transform: new Transform({
                 position: position,
                 rotation: rotation,
@@ -426,6 +656,46 @@ class Sprite extends GameObject
                 parent: parent,
             }),
         });
+
+        this.spriteName = spriteFile;
+        this._cX = ImageSizes[spriteFile].cellCountX;
+        this._cY = ImageSizes[spriteFile].cellCountY;
+        this.tintColor = tintColor;
+        this.currentCell = initCell;
+
+        // This is different from this.renderObject.material.uniforms
+        // this.uniforms contains only part of instance buffers 
+        // ( It is from this.renderObject.material.uniforms ).
+        this.instanceBuffer = {
+            i_world: undefined,
+            i_tintColor: undefined,
+            i_texOffsetScale: undefined
+        };
+
+        // Add this to the sprite render object to be rendered.
+        this.renderObject.addSprite(this);
+
+        // Sprites should also form a linked list
+        // to improve performance
+        this.nextObject = undefined;
+        this.prevObject = undefined;
+        this.parentList = undefined;
+    }
+
+    // render() will only be called if this sprite has already have a proper
+    // instance buffer pointer.
+    render()
+    {
+        this.instanceBuffer.i_world = this.transform.getWorldMatrix();
+        this.instanceBuffer.i_tintColor = this.tintColor;
+        this.instanceBuffer.i_texOffsetScale = 
+        [
+            // (x, y) -> texOffset; (z, w) -> texScale (inv of tiling);
+            this.currentCell % this._cX,
+            Math.floor(this.currentCell / this._cX),
+            this._cX,
+            this._cY
+        ];
     }
 }
 
@@ -455,6 +725,10 @@ class RenderObjectList
 
     remove(renderObject)
     {
+        // TODO: check if the GC works properly so no memory leaks !
+        // Because we have not really deleted the object.
+        // It should be collected by JavaScript GC cuz no ref to the object.
+
         // You are deleting objects not belong to this list!
         if(renderObject.parentList !== this)
         {
@@ -483,6 +757,13 @@ class Renderer
     constructor()
     {
         this.objectList = new RenderObjectList();
+        this.uniforms = 
+        {
+            // Translate the matrix with [0, 0, 10] will place the ortho camera at (0, 0, -10).
+            // Default screen coord: 18 x 32 @ 32ppm / 1024 x 576, (-9, 9), (-16, 16).
+            // u_viewProj: twgl.m4.translate(twgl.m4.ortho(-9, 9, 16, -16, 1, 100), [0, 0, 10]),
+            u_viewProj: twgl.m4.identity(),
+        };
     }
 
     render(gl, time, deltaTime)
@@ -491,6 +772,8 @@ class Renderer
         //       or sharing same shader but different uniforms
         for(var renderObject = this.objectList.headObject; typeof renderObject !== "undefined"; renderObject = renderObject.nextObject)
         {
+            gl.useProgram(renderObject.material.programInfo.program);
+            twgl.setUniforms(renderObject.material.programInfo, this.uniforms);
             renderObject.render(gl);
         }
     }
