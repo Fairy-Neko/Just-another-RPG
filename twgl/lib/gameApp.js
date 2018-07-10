@@ -19,6 +19,10 @@ class GameApp
         this._prevTime = 0;
         this._deltaTime = 0;
 
+        this.renderer = new Renderer();
+        RenderObject.RegisterGameApp(this);
+        this.scene = new Scene({game: this});
+
         this.init();
 
         requestAnimationFrame(this._mainLoop.bind(this));
@@ -26,9 +30,23 @@ class GameApp
 
     init() {}
 
-    update(time, deltaTime) {}
+    update(time, deltaTime) 
+    {
+        this.scene.update(time, deltaTime);
+    }
 
-    render(time, deltaTime) {}
+    render(time, deltaTime) 
+    {
+        twgl.resizeCanvasToDisplaySize(this.gl.canvas);
+        this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+        
+        this.gl.clearColor(0, 0, 0, 1);
+        this.gl.disable(this.gl.DEPTH_TEST);
+        this.gl.disable(this.gl.CULL_FACE);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+
+        this.renderer.render(this.gl, time, deltaTime);
+    }
 
     _mainLoop(__time)
     {

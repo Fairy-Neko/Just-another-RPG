@@ -6,5 +6,12 @@ var ImageSizes =
         y: 64,
         cellCountX: 2,
         cellCountY: 1,
-    }
+    },
+    "/Assets/Images/TileSet/tmap_test.png":
+    {
+        x: 256,
+        y: 128,
+        cellCountX: 4,
+        cellCountY: 2,
+    },
 }

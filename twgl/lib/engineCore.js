@@ -44,7 +44,7 @@ void main()
     // Sample the texture and tint then finish.
     // The * operator works component-wise for vectors like vec4.
     gl_FragColor = texture2D(u_mainTex, v_texCoord) * v_tintColor;
-    // gl_FragColor = vec4(1, 1, 1, 1);
+    // gl_FragColor = vec4(1, 1, 1, 0.1);
 }
 `;
 
@@ -63,6 +63,20 @@ function mulVecMat(mat, vec)
         mat[0] * vec[0] + mat[4] * vec[1] + mat[8] * vec[2], /*x*/
         mat[1] * vec[0] + mat[5] * vec[1] + mat[9] * vec[2], /*y*/
         mat[2] * vec[0] + mat[6] * vec[1] + mat[10]* vec[2]  /*z*/);
+}
+
+// Helper for generate random ints
+// The maximum is exclusive and the minimum is inclusive
+function getRandomInt(min, max) 
+{
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min)) + min; 
+}
+
+function getRandomFloat(min, max) 
+{
+    return Math.random() * (max - min) + min;
 }
 
 //
@@ -117,6 +131,9 @@ class RenderObject
         // undefined will be automatically translate to gl.TRIANGLES during render.
         drawType = undefined,
         gl = undefined,
+
+        // Required render queue. the render object will be automatically added into the renderer.
+        queue = 0,
     } = {})
     {
         this.material = material;
@@ -140,6 +157,8 @@ class RenderObject
                 this.vertexArrayInfo = twgl.createVertexArrayInfo(gl, this.material.getProgramInfo(), this.bufferInfo);
             }
         }
+
+        RenderObject.game.renderer.addObject(this, queue);
     }
 
     prepareRender(gl)
@@ -163,6 +182,11 @@ class RenderObject
         twgl.setBuffersAndAttributes(gl, this.material.getProgramInfo(), this.vertexArrayInfo);
         twgl.drawBufferInfo(gl, this.vertexArrayInfo, this.drawType, this.vertexArrayInfo.numelements, 0, 1);
     }
+
+    static RegisterGameApp(game)
+    {
+        RenderObject.game = game;
+    }
 }
 
 //
@@ -178,6 +202,7 @@ class SpriteRenderObject extends RenderObject
         sizeX = 1,
         sizeY = 1,
         startSize = 64,
+        queue = 0,
     } = {})
     {
         super({
@@ -194,6 +219,7 @@ class SpriteRenderObject extends RenderObject
                 // Not sure if this could introduce some precision problem ...
             drawType: gl.TRIANGLES,
             gl: gl,
+            queue: queue,
         });
 
         this.instanceBuffer = {
@@ -419,7 +445,10 @@ class SpriteRenderObject extends RenderObject
 
     // This will only give you the render object.
     // SpriteRenderObject.addSprite() will not be called.
-    static getSpriteRenderObject(name, preferredSize = 64)
+    static getSpriteRenderObject(name, {
+        preferredSize = 64,
+        renderQueue = 0,
+    } = {})
     {
         // Create the dict if it doesn't exist
         if(typeof SpriteRenderObject.dict === "undefined")
@@ -427,17 +456,21 @@ class SpriteRenderObject extends RenderObject
             SpriteRenderObject.dict = {};
         }
 
-        if(!SpriteRenderObject.dict.hasOwnProperty(name))
+        // Modify the name with required render queue
+        var nameWQueue = name + renderQueue;
+
+        if(!SpriteRenderObject.dict.hasOwnProperty(nameWQueue))
         {
-            SpriteRenderObject.dict[name] = new SpriteRenderObject(SpriteRenderObject.game.gl,{
+            SpriteRenderObject.dict[nameWQueue] = new SpriteRenderObject(SpriteRenderObject.game.gl,{
                 spriteFile: name,
                 sizeX: 1,
                 sizeY: 1,
                 startSize: preferredSize,
+                queue: renderQueue,
             });
         }
 
-        return SpriteRenderObject.dict[name];
+        return SpriteRenderObject.dict[nameWQueue];
     }
 
     static clearRenderObjectDict()
@@ -527,9 +560,14 @@ class GameObject
         this.transform = transform;
     }
 
-    update(time, deltaTime)
+    updateBase(time, deltaTime)
     {
         this.transform.update();
+    }
+
+    update(time, deltaTime)
+    {
+
     }
 }
 
@@ -615,6 +653,7 @@ class Sprite extends GameObject
         sizeY = 1,
         preferredSize = 64,
         parent = undefined,
+        layer = 0,
     } = {})
     {
         /*
@@ -649,7 +688,10 @@ class Sprite extends GameObject
         scale[1] *= sizeY;
 
         super(gl, {
-            renderObject: SpriteRenderObject.getSpriteRenderObject(spriteFile, preferredSize),
+            renderObject: SpriteRenderObject.getSpriteRenderObject(spriteFile, {
+                preferredSize: preferredSize,
+                renderQueue: layer,
+            }),
             transform: new Transform({
                 position: position,
                 rotation: rotation,
@@ -673,14 +715,14 @@ class Sprite extends GameObject
             i_texOffsetScale: undefined
         };
 
-        // Add this to the sprite render object to be rendered.
-        this.renderObject.addSprite(this);
-
         // Sprites should also form a linked list
         // to improve performance
         this.nextObject = undefined;
         this.prevObject = undefined;
         this.parentList = undefined;
+
+        // Add this to the sprite render object to be rendered.
+        this.renderObject.addSprite(this);
     }
 
     // render() will only be called if this sprite has already have a proper
@@ -697,6 +739,20 @@ class Sprite extends GameObject
             this._cX,
             this._cY
         ]);
+    }
+
+    rotate(degree)
+    {
+        twgl.m4.rotateZ(this.transform.rotation, degree, this.transform.rotation);
+    }
+
+    // Remove this sprite from the render object
+    destroy()
+    {
+        this.parentList.removeSprite(this);
+        this.parentList = undefined;
+        this.nextObject = undefined;
+        this.prevObject = undefined;
     }
 }
 
@@ -753,11 +809,46 @@ class RenderObjectList
     }
 }
 
+//
+// ─── SCENE ──────────────────────────────────────────────────────────────────────
+//
+// Scene class holding all gameObjects in current scene.
+class Scene
+{
+    constructor({
+        game = undefined,
+    } = {})
+    {
+        this.objectList = new Set();
+        this.game = game;
+    }
+
+    push(gameObject)
+    {
+        gameObject.scene = this;
+        this.objectList.add(gameObject);
+    }
+
+    remove(gameObject)
+    {
+        this.objectList.delete(gameObject);
+    }
+
+    update(time, deltaTime)
+    {
+        for(var obj of this.objectList)
+        {
+            obj.updateBase(time, deltaTime);
+            obj.update(time, deltaTime);
+        }
+    }
+}
+
 class Renderer
 {
     constructor()
     {
-        this.objectList = new RenderObjectList();
+        this.renderQueue = [];
         this.uniforms = 
         {
             // Translate the matrix with [0, 0, 10] will place the ortho camera at (0, 0, -10).
@@ -765,29 +856,46 @@ class Renderer
             // u_viewProj: twgl.m4.translate(twgl.m4.ortho(-9, 9, 16, -16, 1, 100), [0, 0, 0]),
             // u_viewProj: twgl.m4.ortho(-16, 16, 9, -9, 1, -1),
             u_viewProj: twgl.m4.ortho(-16, 16, 9, -9, 1, -1),
+            // u_viewProj: twgl.m4.ortho(-32, 32, 18, -18, 1, -1),
             // u_viewProj: twgl.m4.identity(),
         };
     }
 
     render(gl, time, deltaTime)
     {
-        // TODO: combine objects sharing same materials
-        //       or sharing same shader but different uniforms
-        for(var renderObject = this.objectList.headObject; typeof renderObject !== "undefined"; renderObject = renderObject.nextObject)
+        for(var idx = 0; idx < this.renderQueue.length; idx++)
         {
-            gl.useProgram(renderObject.material.programInfo.program);
-            twgl.setUniforms(renderObject.material.programInfo, this.uniforms);
-            renderObject.render(gl);
+            var renderObjectList = this.renderQueue[idx];
+            
+            if(typeof renderObjectList !== "undefined")
+            {
+                // TODO: combine objects sharing same materials
+                //       or sharing same shader but different uniforms
+                for(var renderObject = renderObjectList.headObject; typeof renderObject !== "undefined"; renderObject = renderObject.nextObject)
+                {
+                    gl.useProgram(renderObject.material.programInfo.program);
+                    twgl.setUniforms(renderObject.material.programInfo, this.uniforms);
+                    renderObject.render(gl);
+                }
+            }
         }
     }
 
-    addObject(renderObject)
+    addObject(renderObject, queue)
     {
-        this.objectList.push(renderObject);
+        if(typeof this.renderQueue[queue] === "undefined")
+        {
+            this.renderQueue[queue] = new RenderObjectList();
+        }
+        this.renderQueue[queue].push(renderObject);
     }
 
-    removeObject(renderObject)
+    removeObject(renderObject, queue)
     {
-        this.objectList.remove(renderObject);
+        if(typeof this.renderQueue[queue] === "undefined")
+        {
+            return;
+        }
+        this.renderQueue[queue].remove(renderObject);
     }
 }
