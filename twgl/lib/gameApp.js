@@ -24,8 +24,6 @@ class GameApp
         this.scene = new Scene({game: this});
 
         this.init();
-
-        requestAnimationFrame(this._mainLoop.bind(this));
     }
 
     init() {}
@@ -46,6 +44,11 @@ class GameApp
         this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
         this.renderer.render(this.gl, time, deltaTime);
+    }
+
+    startLoop()
+    {
+        requestAnimationFrame(this._mainLoop.bind(this));
     }
 
     _mainLoop(__time)

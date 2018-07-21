@@ -60,9 +60,16 @@ function mulVecMat(mat, vec)
     // 2   6   10  14
     // 3   7   11  15
     return twgl.v3.create(
-        mat[0] * vec[0] + mat[4] * vec[1] + mat[8] * vec[2], /*x*/
-        mat[1] * vec[0] + mat[5] * vec[1] + mat[9] * vec[2], /*y*/
-        mat[2] * vec[0] + mat[6] * vec[1] + mat[10]* vec[2]  /*z*/);
+        mat[0] * vec[0] + mat[4] * vec[1] + mat[8] * vec[2] + mat[12], /*x*/
+        mat[1] * vec[0] + mat[5] * vec[1] + mat[9] * vec[2] + mat[13], /*y*/
+        mat[2] * vec[0] + mat[6] * vec[1] + mat[10]* vec[2] + mat[14]  /*z*/);
+}
+
+function mulVec2Mat(mat, vec)
+{
+    return [
+        mat[0] * vec[0] + mat[4] * vec[1] + mat[12], /*x*/
+        mat[1] * vec[0] + mat[5] * vec[1] + mat[13]  /*y*/];
 }
 
 // Helper for generate random ints
@@ -71,12 +78,56 @@ function getRandomInt(min, max)
 {
     min = Math.ceil(min);
     max = Math.floor(max);
-    return Math.floor(Math.random() * (max - min)) + min; 
+    return Math.floor(Math.random() * (max - min)) + min;
 }
 
 function getRandomFloat(min, max) 
 {
     return Math.random() * (max - min) + min;
+}
+
+function radian(degree)
+{
+    return degree / 180.0 * Math.PI;
+}
+
+//
+// ─── HELPER FUNCTION FOR VEC2 ───────────────────────────────────────────────────
+//
+
+var vec2 = 
+{
+    dot: function(a, b)
+    {
+        return a[0] * b[0] + a[1] * b[1];
+    },
+
+    scalar: function(a, s)
+    {
+        return [s * a[0], s * a[1]];
+    },
+
+    add: function(a, b)
+    {
+        return [a[0] + b[0], a[1] + b[1]];
+    },
+
+    sub: function(a, b)
+    {
+        return [a[0] - b[0], a[1] - b[1]];
+    },
+
+    length: function(a)
+    {
+        return Math.sqrt(a[0] * a[0] + a[1] * a[1]);
+    },
+
+    // Material for 2D rotation:
+    // https://www.siggraph.org/education/materials/HyperGraph/modeling/mod_tran/2drota.htm
+    rotate: function(a, rad)
+    {
+        return [a[0] * Math.cos(rad) - a[1] * Math.sin(rad), a[1] * Math.cos(rad) + a[0] * Math.sin(rad)];
+    },
 }
 
 //
@@ -563,9 +614,18 @@ class GameObject
     updateBase(time, deltaTime)
     {
         this.transform.update();
+        if(typeof this.collider !== "undefined")
+        {
+            this.collider.update();
+        }
     }
 
     update(time, deltaTime)
+    {
+
+    }
+
+    collides(other)
     {
 
     }
@@ -637,6 +697,147 @@ class SpriteTexPool
 }
 
 //
+// ─── BOUNDBOXES ─────────────────────────────────────────────────────────────────
+//
+
+class BoundBox
+{
+    constructor({
+        parentTransform = undefined,
+        parent = undefined,
+        boundMin = [0, 0],
+        boundMax = [0, 0],
+        label = "unlabeled",
+        type = "abstruct"
+    })
+    {
+        this.parentTransform = parentTransform;
+        this.bounds = {min: boundMin, max: boundMax};
+        this.label = label;
+        this.type = type;
+        this.parent = parent;
+    }
+
+    update() {}
+
+    hitTest(target) {}
+}
+
+//
+// ─── BOUNDBOX - OBB ─────────────────────────────────────────────────────────────
+//
+
+class OBB extends BoundBox
+{
+    constructor({
+        parentTransform = undefined,
+        parent = undefined,
+        size = [1, 1],
+        rotation = 0,
+        label = "unlabeled",
+    })
+    {
+        super({
+            parentTransform: parentTransform,
+            label: label,
+            type: "OBB",
+            parent: parent
+        });
+
+        this.position = [0, 0];
+
+        // Extents in each direction: [[axis1+, axis1-], [axis2+, axis2-]]
+        this.originExtents = [size[0] / 2, size[1] / 2];
+        this.extents = [size[0] / 2, size[1] / 2];
+
+        // Rotated axes of the OBB.
+        this.axes = [[1, 0], [0, 1]];
+
+        // Rotation in degrees.
+        this.rotation = rotation;
+
+        this.applyTranslation();
+        this.calculateBounds(size);
+    }
+
+    applyTranslation()
+    {
+        this.position = [0, 0];
+        this.axes[0] = vec2.rotate([1, 0], radian(this.rotation));
+        this.axes[1] = vec2.rotate([0, 1], radian(this.rotation));
+
+        if(typeof this.parentTransform !== "undefined")
+        {
+            var mat = this.parentTransform.getWorldMatrix();
+
+            // Apply translation and rotation
+            this.position = mulVec2Mat(mat, this.position);
+            this.axes[0] = vec2.sub(mulVec2Mat(mat, this.axes[0]), this.position);
+            this.axes[1] = vec2.sub(mulVec2Mat(mat, this.axes[1]), this.position);
+
+            // Apply scaling
+            var len0 = vec2.length(this.axes[0]);
+            var len1 = vec2.length(this.axes[1]);
+
+            this.axes[0] = vec2.scalar(this.axes[0], 1 / len0);
+            this.axes[1] = vec2.scalar(this.axes[1], 1 / len1);
+            this.extents[0] = this.originExtents[0] * len0;
+            this.extents[1] = this.originExtents[1] * len1;
+        }
+    }
+
+    calculateBounds(size)
+    {
+        // Use the circumscribed rectangle of the minimum circle that contains the OBB in any direction as the bounds of the OBB.
+        this.radius = vec2.length(size) * 0.5;
+
+        this.bounds.min = [-this.radius, -this.radius];
+        this.bounds.max = [ this.radius,  this.radius];
+    }
+
+    update()
+    {
+        super.update();
+        this.applyTranslation();
+    }
+
+    _intersect(extentA, extentB)
+    {
+        if(extentA[1] < extentB[0] || extentB[1] < extentA[0])
+        {
+            return false;
+        }
+        return true;
+    }
+
+    hitTest(target)
+    {
+        // Article about OBB intersection (Chinese):
+        // https://www.cnblogs.com/iamzhanglei/archive/2012/06/07/2539751.html
+        if(target.type == "OBB")
+        {
+            // Axes used for detection
+            var detectingAxes = [this.axes[0], this.axes[1], target.axes[0], target.axes[1]];
+            var subVector = vec2.sub(this.position, target.position);
+
+            for(var i = 0; i < 4; i++)
+            {
+                var r1 = this.extents[0] * Math.abs(vec2.dot(detectingAxes[i], this.axes[0])) + this.extents[1] * Math.abs(vec2.dot(detectingAxes[i], this.axes[1]));
+                var r2 = target.extents[0] * Math.abs(vec2.dot(detectingAxes[i], target.axes[0])) + target.extents[1] * Math.abs(vec2.dot(detectingAxes[i], target.axes[1]));
+                var rs = Math.abs(vec2.dot(subVector, detectingAxes[i]));
+
+                if(r1 + r2 <= rs)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+}
+
+//
 // ─── SPRITES ────────────────────────────────────────────────────────────────────
 //
 
@@ -654,6 +855,7 @@ class Sprite extends GameObject
         preferredSize = 64,
         parent = undefined,
         layer = 0,
+        useCollider = true,
     } = {})
     {
         /*
@@ -724,6 +926,20 @@ class Sprite extends GameObject
         // Add this to the sprite render object to be rendered.
         this.renderObject.addSprite(this);
     }
+    
+    getDefaultCollider()
+    {
+        return new OBB({
+            parentTransform: this.transform,
+            size: [1, 1],
+        });
+    }
+
+    setCollider(collider)
+    {
+        this.collider = collider;
+        this.collider.parent = this;
+    }
 
     // render() will only be called if this sprite has already have a proper
     // instance buffer pointer.
@@ -743,7 +959,7 @@ class Sprite extends GameObject
 
     rotate(degree)
     {
-        twgl.m4.rotateZ(this.transform.rotation, degree, this.transform.rotation);
+        twgl.m4.rotateZ(this.transform.rotation, radian(degree), this.transform.rotation);
     }
 
     // Remove this sprite from the render object
@@ -756,7 +972,7 @@ class Sprite extends GameObject
     }
 }
 
-class RenderObjectList
+class ObjectList
 {
     constructor()
     {
@@ -764,42 +980,41 @@ class RenderObjectList
         this.currentObject = undefined;
     }
 
-    // Push a renderObject in the front of the list.
-    push(renderObject)
+    // Push a object in the front of the list.
+    push(_object)
     {
-        renderObject.parentList = this;
-
-        renderObject.prevObject = undefined;
-        renderObject.nextObject = this.headObject;
+        _object.parentList = this;
+        _object.prevObject = undefined;
+        _object.nextObject = this.headObject;
 
         if(typeof this.headObject !== "undefined")
         {
-            this.headObject.prevObject = renderObject;
+            this.headObject.prevObject = _object;
         }
 
-        this.headObject = renderObject;
+        this.headObject = _object;
     }
 
-    remove(renderObject)
+    remove(_object)
     {
         // TODO: check if the GC works properly so no memory leaks !
         // Because we have not really deleted the object.
         // It should be collected by JavaScript GC cuz no ref to the object.
 
         // You are deleting objects not belong to this list!
-        if(renderObject.parentList !== this)
+        if(_object.parentList !== this)
         {
             return;
         }
 
-        if(typeof renderObject.nextObject !== "undefined")
+        if(typeof _object.nextObject !== "undefined")
         {
-            renderObject.nextObject.prevObject = renderObject.prevObject;
+            _object.nextObject.prevObject = _object.prevObject;
         }
 
-        if(typeof renderObject.prevObject !== "undefined")
+        if(typeof _object.prevObject !== "undefined")
         {
-            renderObject.prevObject.nextObject = renderObject.nextObject;
+            _object.prevObject.nextObject = _object.nextObject;
         }
         else
         // You are deleting the head node of this list (cuz it does not have prev and it is in this list)
@@ -821,6 +1036,7 @@ class Scene
     {
         this.objectList = new Set();
         this.game = game;
+        this.collisionLists = {};
     }
 
     push(gameObject)
@@ -838,8 +1054,35 @@ class Scene
     {
         for(var obj of this.objectList)
         {
+            if(typeof obj.collider !== "undefined" && typeof obj.collider.parentList === "undefined")
+            {
+                if(typeof this.collisionLists[obj.collider.label] === "undefined")
+                {
+                    this.collisionLists[obj.collider.label] = new ObjectList();
+                }
+
+                this.collisionLists[obj.collider.label].push(obj.collider);
+            }
+
             obj.updateBase(time, deltaTime);
             obj.update(time, deltaTime);
+
+            // Collision detection
+            // TODO: Only "unlabeled" list now
+            if(typeof this.collisionLists.unlabeled !== "undefined")
+            {
+                for(var objA = this.collisionLists.unlabeled.headObject; typeof objA !== "undefined"; objA = objA.nextObject)
+                {
+                    for(var objB = objA.nextObject; typeof objB !== "undefined"; objB = objB.nextObject)
+                    {
+                        if(objA.hitTest(objB) === true)
+                        {
+                            objA.parent.collides(objB.parent);
+                            objB.parent.collides(objA.parent);
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -885,7 +1128,7 @@ class Renderer
     {
         if(typeof this.renderQueue[queue] === "undefined")
         {
-            this.renderQueue[queue] = new RenderObjectList();
+            this.renderQueue[queue] = new ObjectList();
         }
         this.renderQueue[queue].push(renderObject);
     }
