@@ -152,6 +152,14 @@ gameApp =
 
         this.sprite1 = new BABYLON.Sprite("test1", this.testSpritePool.getMgr("test", this.scene, 16));
         this.sprite2 = new BABYLON.Sprite("test2", this.testSpritePool.getMgr("test", this.scene, 16));
+        
+        this.sprite3 = new BABYLON.Sprite("slime", this.testSpritePool.getMgr("blueSlime", this.scene, 16));
+        this.sprite3.position = new BABYLON.Vector3(7, 0, -1);
+        this.sprite3.playAnimation(0,3,true,200);
+        
+        this.attackEffect = new BABYLON.Sprite("attack", this.testSpritePool.getMgr("attackEffect_green", this.scene, 16));
+        this.attackEffect.position = new BABYLON.Vector3(-3, 0, -1);
+        this.attackEffect.playAnimation(0,3,true,200);
 
         // grouping test
         this.sprite1.parent = this.sprite2;
@@ -181,7 +189,7 @@ gameApp =
 
         this.sprite1.position = (new BABYLON.Vector3(Math.sin(this.timeTotal), Math.cos(this.timeTotal), -1)).scale(6);
         this.sprite2.position = (new BABYLON.Vector3(Math.cos(this.timeTotal), Math.sin(this.timeTotal), -1)).scale(4);
-
+        this.attackEffect.position.x += 3.0  * deltaTime;
         //Pressure test
         // var i = 0;
 
